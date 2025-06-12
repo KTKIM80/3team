@@ -340,6 +340,124 @@ def main():
             st.subheader("📊 수출 매출 통계")
             export_stats = st.session_state.export_data['Export_Sales'].describe()
             st.dataframe(export_stats.to_frame().T, use_container_width=True)
+    
+    # Analysis Results
+    if st.session_state.analysis_results:
+        results = st.session_state.analysis_results
+        
+        st.header("📈 분석 결과")
+        
+        # Time Series Plot
+        st.subheader("📈 시계열 분석")
+        time_series_fig = chart_generator.create_time_series_plot(results)
+        st.plotly_chart(time_series_fig, use_container_width=True)
+        
+        # Correlation Analysis
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.subheader("🔥 상관관계 히트맵")
+            heatmap_fig = chart_generator.create_correlation_heatmap(results['correlation_matrix'])
+            st.pyplot(heatmap_fig)
+        
+        with col2:
+            st.subheader("🏆 상위 3개 상관관계")
+            top_corr_df = results['top_correlations'].head(3)  # Top 3만 표시
+            for idx, row in top_corr_df.iterrows():
+                correlation = row['Correlation']
+                indicator = row['Indicator']
+                
+                # Color coding based on correlation strength
+                if abs(correlation) >= 0.7:
+                    emoji = "🔴" if correlation > 0 else "🔵"
+                elif abs(correlation) >= 0.5:
+                    emoji = "🟠" if correlation > 0 else "🟣"
+                else:
+                    emoji = "🟡" if correlation > 0 else "🟤"
+                
+                st.metric(
+                    label=f"{emoji} {indicator}",
+                    value=f"{correlation:.3f}",
+                    delta=f"순위 #{idx + 1}"
+                )
+        
+        # Lag Analysis
+        st.subheader("⏰ 시차 분석")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            lag_fig = chart_generator.create_lag_analysis_plot(results['lag_analysis'])
+            st.plotly_chart(lag_fig, use_container_width=True)
+        
+        with col2:
+            st.subheader("🥇 상위 3개 시차 상관관계")
+            top_lag_df = results['top_lagged_correlations'].head(3)  # Top 3만 표시
+            
+            for idx, row in top_lag_df.iterrows():
+                indicator = row['Indicator']
+                lag = row['Lag (months)']
+                correlation = row['Correlation']
+                
+                # Determine lag direction
+                if lag > 0:
+                    lag_text = f"수출이 {lag}개월 선행"
+                    lag_emoji = "⏭️"
+                elif lag < 0:
+                    lag_text = f"지표가 {abs(lag)}개월 선행"
+                    lag_emoji = "⏮️"
+                else:
+                    lag_text = "동시 상관관계"
+                    lag_emoji = "🎯"
+                
+                st.metric(
+                    label=f"{lag_emoji} {indicator}",
+                    value=f"{correlation:.3f}",
+                    delta=lag_text
+                )
+        
+        # Summary insights
+        st.subheader("💡 분석 인사이트")
+        
+        # 가장 높은 상관관계 지표
+        best_corr = results['top_correlations'].iloc[0]
+        best_indicator = best_corr['Indicator']
+        best_correlation = best_corr['Correlation']
+        
+        # 가장 높은 시차 상관관계
+        best_lag = results['top_lagged_correlations'].iloc[0]
+        best_lag_indicator = best_lag['Indicator']
+        best_lag_correlation = best_lag['Correlation']
+        best_lag_months = best_lag['Lag (months)']
+        
+        insight_col1, insight_col2 = st.columns(2)
+        
+        with insight_col1:
+            st.info(f"""
+            **🎯 최고 상관관계 지표**
+            
+            **{best_indicator}**가 Trading Group 수출 매출과 가장 높은 상관관계를 보입니다.
+            
+            - 상관계수: **{best_correlation:.3f}**
+            - 관계: {'양의 상관관계' if best_correlation > 0 else '음의 상관관계'}
+            """)
+        
+        with insight_col2:
+            if best_lag_months > 0:
+                lag_direction = f"수출 매출이 {best_lag_months}개월 선행"
+            elif best_lag_months < 0:
+                lag_direction = f"{best_lag_indicator}가 {abs(best_lag_months)}개월 선행"
+            else:
+                lag_direction = "동시 발생"
+            
+            st.success(f"""
+            **⏰ 최고 시차 상관관계**
+            
+            **{best_lag_indicator}**와 가장 강한 시차 상관관계를 보입니다.
+            
+            - 상관계수: **{best_lag_correlation:.3f}**
+            - 시차: **{lag_direction}**
+            """)
 
 if __name__ == "__main__":
     main()
