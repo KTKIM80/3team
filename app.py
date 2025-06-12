@@ -10,6 +10,7 @@ from fredapi import Fred
 import io
 from datetime import datetime, timedelta
 import warnings
+from sklearn.preprocessing import StandardScaler
 warnings.filterwarnings('ignore')
 
 from utils.fred_data import FredDataManager
@@ -247,60 +248,125 @@ def main():
         )
         
         if selected_chart_indicators:
-            # 선택된 지표들의 시계열 그래프 생성
-            fig = go.Figure()
+            # 선택된 지표들의 데이터 테이블 표시
+            st.subheader("📊 선택된 경제지표 데이터")
+            selected_data = st.session_state.fred_data[selected_chart_indicators]
             
-            colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+            # 최신 20개 데이터 표시
+            st.dataframe(selected_data.tail(20), use_container_width=True)
             
-            for i, indicator in enumerate(selected_chart_indicators[:5]):  # 최대 5개
-                color = colors[i % len(colors)]
-                
-                fig.add_trace(go.Scatter(
-                    x=st.session_state.fred_data.index,
-                    y=st.session_state.fred_data[indicator],
-                    mode='lines',
-                    name=indicator,
-                    line=dict(color=color, width=2),
-                    hovertemplate=f'<b>{indicator}</b><br>' +
-                                  'Date: %{x}<br>' +
-                                  'Value: %{y:.2f}<br>' +
-                                  '<extra></extra>'
-                ))
+            # 결측값 제거
+            clean_data = selected_data.dropna()
             
-            fig.update_layout(
-                title=f"선택된 경제지표 시계열 분석 ({len(selected_chart_indicators)}개 지표)",
-                xaxis_title="날짜",
-                yaxis_title="지표 값",
-                hovermode='x unified',
-                height=500,
-                showlegend=True,
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="right",
-                    x=1
+            if len(clean_data) > 0:
+                # 표준화 수행
+                scaler = StandardScaler()
+                standardized_data = pd.DataFrame(
+                    scaler.fit_transform(clean_data),
+                    index=clean_data.index,
+                    columns=clean_data.columns
                 )
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # 선택된 지표들의 최신 값 표시
-            st.subheader("📊 선택된 지표들의 최신 값")
-            latest_values = st.session_state.fred_data[selected_chart_indicators].iloc[-1]
-            
-            cols = st.columns(min(len(selected_chart_indicators), 5))
-            for i, (indicator, value) in enumerate(latest_values.items()):
-                with cols[i % 5]:
-                    if pd.notna(value):
-                        if indicator == 'UNRATE':
-                            st.metric(indicator, f"{value:.1f}%")
-                        elif indicator in ['USD/KRW', 'WTI', 'US10Y']:
-                            st.metric(indicator, f"{value:.2f}")
+                
+                # 표준화된 데이터로 시계열 그래프 생성
+                st.subheader("📈 표준화된 경제지표 시계열 그래프")
+                
+                fig = go.Figure()
+                
+                colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+                
+                for i, indicator in enumerate(selected_chart_indicators[:5]):  # 최대 5개
+                    color = colors[i % len(colors)]
+                    
+                    fig.add_trace(go.Scatter(
+                        x=standardized_data.index,
+                        y=standardized_data[indicator],
+                        mode='lines',
+                        name=indicator,
+                        line=dict(color=color, width=2),
+                        hovertemplate=f'<b>{indicator}</b><br>' +
+                                      'Date: %{x}<br>' +
+                                      'Standardized Value: %{y:.2f}<br>' +
+                                      '<extra></extra>'
+                    ))
+                
+                fig.update_layout(
+                    title=f"표준화된 경제지표 시계열 분석 ({len(selected_chart_indicators)}개 지표)",
+                    xaxis_title="날짜",
+                    yaxis_title="표준화된 값 (Z-score)",
+                    hovermode='x unified',
+                    height=500,
+                    showlegend=True,
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="right",
+                        x=1
+                    )
+                )
+                
+                # Y축에 0 기준선 추가
+                fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # 표준화 설명
+                st.info("""
+                **📊 표준화 정보:**
+                - 각 지표는 Z-score 표준화를 통해 평균 0, 표준편차 1로 변환되었습니다
+                - 이를 통해 서로 다른 단위와 스케일의 지표들을 동일한 기준으로 비교할 수 있습니다
+                - 0보다 큰 값은 평균보다 높음을, 0보다 작은 값은 평균보다 낮음을 의미합니다
+                """)
+                
+                # 선택된 지표들의 원본 최신 값 표시
+                st.subheader("📊 선택된 지표들의 최신 원본 값")
+                latest_values = st.session_state.fred_data[selected_chart_indicators].iloc[-1]
+                
+                cols = st.columns(min(len(selected_chart_indicators), 5))
+                for i, (indicator, value) in enumerate(latest_values.items()):
+                    with cols[i % 5]:
+                        if pd.notna(value):
+                            if indicator == 'UNRATE':
+                                st.metric(indicator, f"{value:.1f}%")
+                            elif indicator in ['USD/KRW', 'WTI', 'US10Y']:
+                                st.metric(indicator, f"{value:.2f}")
+                            else:
+                                st.metric(indicator, f"{value:,.1f}")
                         else:
-                            st.metric(indicator, f"{value:,.1f}")
-                    else:
-                        st.metric(indicator, "N/A")
+                            st.metric(indicator, "N/A")
+                
+                # 표준화된 최신 값도 표시
+                st.subheader("📊 선택된 지표들의 최신 표준화 값")
+                latest_standardized = standardized_data.iloc[-1]
+                
+                cols = st.columns(min(len(selected_chart_indicators), 5))
+                for i, (indicator, value) in enumerate(latest_standardized.items()):
+                    with cols[i % 5]:
+                        if pd.notna(value):
+                            # 표준화 값에 따른 상태 표시
+                            if value > 1:
+                                status = "매우 높음"
+                                delta_color = "normal"
+                            elif value > 0:
+                                status = "평균 이상"
+                                delta_color = "normal"
+                            elif value > -1:
+                                status = "평균 이하"
+                                delta_color = "inverse"
+                            else:
+                                status = "매우 낮음"
+                                delta_color = "inverse"
+                            
+                            st.metric(
+                                label=f"{indicator} (표준화)",
+                                value=f"{value:.2f}",
+                                delta=status,
+                                delta_color=delta_color
+                            )
+                        else:
+                            st.metric(f"{indicator} (표준화)", "N/A")
+            else:
+                st.warning("⚠️ 선택된 지표에 유효한 데이터가 없습니다.")
         
         with st.expander("FRED 데이터 보기", expanded=False):
             # 최신 데이터 표시
