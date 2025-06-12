@@ -270,8 +270,8 @@ class FredDataManager:
         }
         return indicator_info
     
-    def process_export_data(self, uploaded_file):
-        """Process uploaded Excel file containing export sales data"""
+    def process_export_data(self, uploaded_file, analysis_start_date=None, analysis_end_date=None):
+        """Process uploaded Excel file containing export sales data with analysis period filtering"""
         try:
             # Read Excel file
             if uploaded_file.name.endswith('.xlsx'):
@@ -346,11 +346,61 @@ class FredDataManager:
             if before_filter != after_filter:
                 st.warning(f"⚠️ {before_filter - after_filter}개 행이 0 이하 값으로 인해 제거되었습니다")
             
+            # 분석 기간 필터링 적용
+            if analysis_start_date is not None and analysis_end_date is not None:
+                # 날짜를 월 시작일로 변환
+                start_filter = pd.Timestamp(analysis_start_date.year, analysis_start_date.month, 1)
+                end_filter = pd.Timestamp(analysis_end_date.year, analysis_end_date.month, 1)
+                
+                st.info(f"📅 **선택된 분석 기간으로 필터링: {start_filter.strftime('%Y-%m')} ~ {end_filter.strftime('%Y-%m')}**")
+                
+                # 원본 데이터 기간 표시
+                original_start = export_df.index.min()
+                original_end = export_df.index.max()
+                st.info(f"📊 원본 데이터 기간: {original_start.strftime('%Y-%m')} ~ {original_end.strftime('%Y-%m')}")
+                
+                # 기간 필터링
+                before_period_filter = len(export_df)
+                export_df = export_df.loc[start_filter:end_filter]
+                after_period_filter = len(export_df)
+                
+                if after_period_filter < before_period_filter:
+                    filtered_count = before_period_filter - after_period_filter
+                    st.success(f"✅ 분석 기간 필터링 완료: {filtered_count}개 데이터 포인트 제외")
+                
+                # 필터링 후 데이터 기간 확인
+                if len(export_df) > 0:
+                    filtered_start = export_df.index.min()
+                    filtered_end = export_df.index.max()
+                    st.success(f"📈 **필터링된 데이터 기간: {filtered_start.strftime('%Y-%m')} ~ {filtered_end.strftime('%Y-%m')}**")
+                else:
+                    st.error("❌ 선택된 분석 기간에 해당하는 데이터가 없습니다")
+                    st.info("다른 분석 기간을 선택하거나 데이터를 확인해주세요")
+                    return None
+            
             if len(export_df) == 0:
                 raise Exception("처리 후 유효한 수출 매출 데이터가 없습니다")
             
+            # 최종 결과 표시
             st.success(f"✅ 수출 데이터 처리 완료: {len(export_df)}개 데이터 포인트")
-            st.info(f"📅 데이터 기간: {export_df.index.min().strftime('%Y-%m')} ~ {export_df.index.max().strftime('%Y-%m')}")
+            
+            if analysis_start_date is not None and analysis_end_date is not None:
+                st.info(f"📅 **최종 분석 데이터 기간: {export_df.index.min().strftime('%Y-%m')} ~ {export_df.index.max().strftime('%Y-%m')}**")
+            else:
+                st.info(f"📅 데이터 기간: {export_df.index.min().strftime('%Y-%m')} ~ {export_df.index.max().strftime('%Y-%m')}")
+            
+            # 데이터 요약 통계
+            st.subheader("📊 처리된 데이터 요약")
+            summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
+            
+            with summary_col1:
+                st.metric("총 데이터 포인트", len(export_df))
+            with summary_col2:
+                st.metric("평균 매출", f"{export_df['Export_Sales'].mean():,.0f}")
+            with summary_col3:
+                st.metric("최대 매출", f"{export_df['Export_Sales'].max():,.0f}")
+            with summary_col4:
+                st.metric("최소 매출", f"{export_df['Export_Sales'].min():,.0f}")
             
             return export_df
             
