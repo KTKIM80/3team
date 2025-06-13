@@ -23,7 +23,7 @@ class FredDataManager:
             'PPI': 'PPIACO',                # 미국 PPI
             'UNRATE': 'UNRATE',             # 미국 실업률
             'AUTO_SALES': 'TOTALSA',        # 미국 자동차 판매량
-            'AUTO_PROD': 'IPG3361T3S',      # 미국 자동차 생산량
+            'AUTO_PROD': 'DAUPSA',      # 미국 자동차 생산량
             'BDI': 'STLFSI2'                # 국제 운임지수 (Baltic Dry Index proxy)
         }
     

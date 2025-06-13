@@ -5,7 +5,7 @@ import streamlit as st
 
 class CorrelationAnalyzer:
     def __init__(self):
-        self.lag_range = range(-12, 13)  # -12 to +12 months
+        self.lag_range = range(-6, 7)  # -6 to +6 months
     
     def calculate_correlations(self, fred_data, export_data, selected_indicators):
         """Calculate correlations between export sales and selected indicators"""
